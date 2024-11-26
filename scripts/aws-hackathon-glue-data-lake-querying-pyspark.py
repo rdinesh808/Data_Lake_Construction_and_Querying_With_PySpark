@@ -11,7 +11,7 @@ s3_client = boto3.client("s3")
 sns_client = boto3.client('sns')
 glue_client = boto3.client('glue')
 
-args = getResolvedOptions(sys.argv, ['JOB_NAME', 'bucket_name', 'csv_file', 'parquet_file', 'file', 'query', 'table_name'])
+args = getResolvedOptions(sys.argv, ['JOB_NAME', 'bucket_name', 'csv_file', 'parquet_file', 'file', 'query', 'table_name', 'sns-topic-arn', 'crawler_name'])
 
 sc = SparkContext()
 glueContext = GlueContext(sc)
@@ -28,7 +28,7 @@ table_name = args['table_name']
 
 def send_email_notification(subject, message):
     try:
-        sns_topic_arn = "arn:aws:sns:us-east-1:590183677901:my-aws-din-sns-topic"
+        sns_topic_arn = args['sns-topic-arn']
         msg = message
         sub = subject
         response = sns_client.publish(TopicArn=sns_topic_arn, Message=msg, Subject=sub)
@@ -80,8 +80,6 @@ print(f"Total Columns: {column_count}")
 columns = df.columns
 print(f"Columns: {columns}")
 
-print("DataFrame details:\n", df.describe().show())
-
 null_counts = df.select([sum(col(c).isNull().cast("int")).alias(c) for c in df.columns])
 print("Null counts:\n", null_counts.show())
 
@@ -92,7 +90,6 @@ df.createOrReplaceTempView(table_name)
 print("Query is : ", query)
 
 result_df = spark.sql(query)
-print(result_df.head())
 
 delete_existing_file()
 
@@ -111,16 +108,15 @@ else:
     send_email_notification("Execution failed status", f"Dear Team,\nNo file format: {file}. Supported formats are 'csv', 'parquet' Exiting.\n\nThanks!")
     sys.exit(1)
 
-crawler_name = 'aws-hackathon-crawler-data-lake-querying-pyspark'
 try:
-    response = glue_client.start_crawler(Name=crawler_name)
-    print(f"Crawler '{crawler_name}' started successfully.")
+    response = glue_client.start_crawler(Name=args['crawler_name'])
 except glue_client.exceptions.CrawlerRunningException:
     print(f"Crawler '{crawler_name}' is already running.")
 except Exception as e:
     print(f"An error occurred: {str(e)}")
     send_email_notification("Execution failed status", f"Dear Team,\nThe execution has failed. Please check the below error \n {e}.\n\nThanks!")    
 
-send_email_notification("Execution successfully completed status", "Dear Team,\nThe execution has been successfully completed. Please check the detailed result in Athena.\n\nThanks!")    
+send_email_notification("Execution successfully completed status", "Dear Team,\nThe execution has been successfully completed. Please check the detailed result in Athena.\n\nThanks!")  
+
 print("Execution Completed....")
 job.commit()

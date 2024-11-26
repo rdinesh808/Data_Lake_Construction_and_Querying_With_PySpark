@@ -13,7 +13,7 @@ default_args = {
 dag = DAG(
     dag_id="data_lake_construction_query_pyspark",
     default_args=default_args,
-    schedule_interval="0 * * * 1-5",
+    schedule_interval="@Daily",
     catchup=False,
     tags=["data_lake", "pyspark"]
 )
@@ -24,11 +24,11 @@ def start_execution():
 def finish_execution():
     print("Execution finished...!!!")
 
-def execute_glue_job():
+def start_lambda_function():
     try:
         lambda_client = boto3.client("lambda", region_name="us-east-1")
-        res = lambda_client.invoke(FunctionName='aws-hackathon-lambda-data-lake-querying-pyspark ', InvocationType='RequestResponse', LogType='Tail')
-        return res
+        res = lambda_client.invoke(FunctionName='aws-hackathon-lambda-data-lake-querying-pyspark', InvocationType='RequestResponse', LogType='Tail')
+        print("Response is : ", res)
     except Exception as e:
         print(e)
 
@@ -44,9 +44,9 @@ execution_finish_task = PythonOperator(
     dag=dag
 )
 
-execute_glue_job_task = PythonOperator(
-    task_id="execute_glue_job",
-    python_callable=execute_glue_job,
+execute_lambda_function = PythonOperator(
+    task_id="execute_lambda_function",
+    python_callable=start_lambda_function,
     dag=dag
 )
-execution_start_task >> execute_glue_job_task >> execution_finish_task
+execution_start_task >> execute_lambda_function >> execution_finish_task

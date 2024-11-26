@@ -15,7 +15,7 @@ def unsaved_folder():
         print(f"Error deleting folder : {str(e)}")
 
 def lambda_handler(event, context):
-    #unsaved_folder()
+    unsaved_folder()
     #time.sleep(3)
     try:
         s3_response = s3.get_object(Bucket=os.getenv('bucket_name'), Key=os.getenv('config_file_path'))
@@ -31,7 +31,13 @@ def lambda_handler(event, context):
         JobName=os.getenv("glue_job_name"),
         Arguments=params )
         
-        print("Successfully gluejob triggered..")
-        
     except Exception as e:
         print("Error lambda functions : ", e)
+        return {
+            'status_code': 400,
+            'status': f'Failed lambda function trigger. {e}'
+        }
+    return {
+        'status_code': 200,
+        'status': 'Successfully GlueJob Triggered.'
+    }
