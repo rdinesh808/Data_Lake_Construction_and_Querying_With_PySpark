@@ -1,0 +1,5 @@
+{
+  "file_type": "parquet",
+  "table_name": "data_lake_query",
+  "ps_query": "SELECT * FROM data_lake_query WHERE `Date of birth` BETWEEN '2000-01-01' AND '2024-12-31'"
+}
