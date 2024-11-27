@@ -1,0 +1,31 @@
+Apache Airflow:
+Acts as the orchestrator to manage workflows.
+Triggers AWS Lambda functions for automation tasks.
+
+AWS Lambda:
+Performs specific tasks as per workflows triggered by Airflow.
+Interacts with S3 and AWS Glue for data operations.
+
+IAM (Identity and Access Management):
+Provides secure access and permissions for different AWS services.
+
+S3 Bucket:
+Stores raw input data (CSV or Parquet) and processed output data.
+Data from S3 serves as input for AWS Glue.
+
+AWS Glue:
+Handles data processing and transformations.
+Works with Glue Crawlers to create and update the metadata catalog.
+
+Glue Crawler:
+Scans data in S3 to infer schema and create metadata for querying in Athena.
+
+Amazon Athena:
+Enables SQL-like queries on the data processed by Glue and stored in S3.
+Provides reporting and insights.
+
+CloudWatch Logs:
+Monitors and logs system events, including Glue and Lambda activities.
+
+Amazon SNS (Simple Notification Service):
+Sends notifications about system or workflow events (e.g., task completions or failures).
