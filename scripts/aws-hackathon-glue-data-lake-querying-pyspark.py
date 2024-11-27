@@ -11,11 +11,14 @@ s3_client = boto3.client("s3")
 sns_client = boto3.client('sns')
 glue_client = boto3.client('glue')
 
-args = getResolvedOptions(sys.argv, ['JOB_NAME', 'bucket_name', 'csv_file', 'parquet_file', 'file', 'query', 'table_name', 'sns-topic-arn', 'crawler_name'])
+args = getResolvedOptions(sys.argv, ['JOB_NAME', 'bucket_name', 'csv_file', 'parquet_file', 'file', 'query', 'table_name', 'sns_topic_arn', 'crawler_name'])
 
 sc = SparkContext()
 glueContext = GlueContext(sc)
+glueContext.setConf("spark.sql.streaming.checkpointLocation", "")
 spark = glueContext.spark_session
+spark.conf.set("fs.s3.maxConnections", "100")
+spark.conf.set("spark.hadoop.fs.s3a.fast.upload", "true")
 job = Job(glueContext)
 job.init(args['JOB_NAME'], args)
 
@@ -28,7 +31,7 @@ table_name = args['table_name']
 
 def send_email_notification(subject, message):
     try:
-        sns_topic_arn = args['sns-topic-arn']
+        sns_topic_arn = args['sns_topic_arn']
         msg = message
         sub = subject
         response = sns_client.publish(TopicArn=sns_topic_arn, Message=msg, Subject=sub)
@@ -59,15 +62,30 @@ def rename_the_file(extention):
 if file == 'csv':
     print("Reading csv file.")
     path = f"s3://{bucket_name}/input_data/{file}/{csv_file_path}"
-    df = spark.read.option("header", "true").option("inferSchema", "true").csv(path)
+    #df = spark.read.option("header", "true").option("inferSchema", "true").csv(path)
+    dynamic_frame = glueContext.create_dynamic_frame.from_options(
+        connection_type="s3",
+        connection_options={"paths": [path]},
+        format="csv",
+        format_options={"withHeader": True, "separator": ","}
+        )
 elif file == 'parquet':
     print("Reading parquet file")
     path = f"s3://{bucket_name}/input_data/{file}/{parquet_file_path}"
-    df=spark.read.parquet(path)
+    # df = spark.read.parquet(path)
+    dynamic_frame = glueContext.create_dynamic_frame.from_options(
+        connection_type="s3",
+        connection_options={"paths": [path]},
+        format="parquet"
+        )
 else:
     print(f"Unsupported file format: {file}. Supported formats are 'csv', 'parquet' Exiting.")
     send_email_notification("Execution failed status", f"Dear Team,\nNUnsupported file format: {file}. Supported formats are 'csv', 'parquet' Exiting.\n\nThanks!")
     sys.exit(1)
+
+df = dynamic_frame.toDF()
+
+df = df.fillna("Nan")    
     
 print("Display the structure of the DataFrame:\n", df.printSchema())
 
@@ -97,12 +115,14 @@ output_path = f"s3://{bucket_name}/output/"
 
 if file == 'csv':
     print("Write data in to parquet format.")
-    result_df.coalesce(1).write.mode("overwrite").parquet(output_path)
-    rename_the_file('parquet')
+    #result_df.coalesce(1).write.mode("overwrite").parquet(output_path)
+    #rename_the_file('parquet')
+    result_df.write.option("compression", "snappy").mode("overwrite").parquet(output_path)
 elif file == 'parquet':
     print("Write data in to CSV format.")
-    result_df.coalesce(1).write.option("header", "true").mode("overwrite").csv(output_path)
-    rename_the_file('csv')
+    # result_df.coalesce(1).write.option("header", "true").mode("overwrite").csv(output_path)
+    # rename_the_file('csv')
+    result_df.write.option("header", "true").mode("overwrite").csv(output_path)
 else:
     print(f"No file format: {file}. Supported formats are 'csv', 'parquet' Exiting.")
     send_email_notification("Execution failed status", f"Dear Team,\nNo file format: {file}. Supported formats are 'csv', 'parquet' Exiting.\n\nThanks!")
